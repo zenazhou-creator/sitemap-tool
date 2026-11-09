@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sitemap 更新</title>
+<title>Sitemap 批量更新</title>
 <style>
 /* ===== 配色：只改这里 ===== */
 :root{--bg:#f4f2f7;--card:#fff;--ink:#2b2833;--mute:#756f82;--line:#dcd7e4;--accent:#7a6a9a;--accent-d:#66578a;--tint:#ece8f3;--ok:#4f7f62;--err:#b0473f}
@@ -46,7 +46,7 @@ tr.grp td{background:var(--tint);font-weight:600;padding:6px 8px}
 </head>
 <body>
 <main>
-<h1>Sitemap 更新</h1>
+<h1>Sitemap 批量更新</h1>
 <p class="sub">更新站点 sitemap，按需导出坏链、XML、HTML 与变化记录。</p>
 
 <details class="panel" id="settings">
@@ -335,11 +335,18 @@ async function addToZip(zip, s, o) {
 
 async function latestHistory(s) {
   const l = await api({ method: "site_history", site_id: s.id });
-  const es = (l.result && l.result.entries) || [];
+  let es = (l.result && l.result.entries) || [];
+  const total = Number(l.result && l.result.total_entries) || es.length;
+  if (total > es.length) {
+    try {
+      const l2 = await api({ method: "site_history", site_id: s.id, from: Math.max(0, total - es.length) });
+      es = es.concat((l2.result && l2.result.entries) || []);
+    } catch (e) {}
+  }
   if (!es.length) throw new Error("没有历史记录");
   const latest = es.reduce((a, b) => (Number(b.time) > Number(a.time) ? b : a));
   const d = await api({ method: "site_history", site_id: s.id, entry_id: latest.id });
-  return { time: fmt(latest.time), det: (d.result && d.result.entry_details) || d.entry_details || {} };
+  return { time: fmt(latest.time), listCount: latest.broken_links, det: (d.result && d.result.entry_details) || d.entry_details || {} };
 }
 const brokenRows = (s, h) => (h.det.broken_links || []).flatMap(([u, refs]) =>
   (refs && refs.length ? refs : [""]).map(r => [disp(s.url), u, r, h.time]));
@@ -365,23 +372,32 @@ async function runExport(list) {
     try {
       setState(s, "导出中…");
       if (o.xml || o.html) await addToZip(zip, s, o);
+      let msg = "已导出", cls = "ok";
       if (o.broken || o.changes) {
         const h = await latestHistory(s);
-        if (o.broken) broken.push(...brokenRows(s, h));
+        if (o.broken) {
+          const rows = brokenRows(s, h);
+          broken.push(...rows);
+          const urls = new Set(rows.map(r => r[1])).size, stat = Number(h.listCount) || 0;
+          if (urls) msg = `坏链 ${urls} 个 URL（抓取记录显示 ${h.listCount ?? "?"}，抓取于 ${h.time}）`;
+          else if (stat) { msg = `抓取记录显示有 ${stat} 条坏链，但详情里没取到`; cls = "err"; }
+          else msg = `无坏链（抓取于 ${h.time}）`;
+        }
         if (o.changes) changes.push(...changeRows(s, h));
       }
-      setState(s, "已导出", "ok");
+      setState(s, msg, cls);
     } catch (e) { fails++; setState(s, "导出失败：" + e.message, "err"); }
     finally { progStep(); }
   }
   progEnd(`导出完成：成功 ${list.length - fails}，失败 ${fails}`);
   if (!needZip) {
     const rows = o.broken ? broken : changes;
+    if (rows.length < 2) return progEnd(o.broken ? "所选站点没有坏链，未生成文件" : "所选站点没有变化记录，未生成文件");
     return save(new Blob([csv(rows)], { type: "text/csv;charset=utf-8" }), (o.broken ? "broken-links-" : "changes-") + stamp() + ".csv");
   }
-  if (o.broken) zip.file("broken-links.csv", csv(broken));
-  if (o.changes) zip.file("changes.csv", csv(changes));
-  if (!Object.keys(zip.files).length) return;
+  if (o.broken && broken.length > 1) zip.file("broken-links.csv", csv(broken));
+  if (o.changes && changes.length > 1) zip.file("changes.csv", csv(changes));
+  if (!Object.keys(zip.files).length) return progEnd("没有可导出的内容，未生成文件");
   save(await zip.generateAsync({ type: "blob" }), "sitemaps-" + stamp() + ".zip");
 }
 
