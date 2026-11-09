@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sitemap 更新</title>
+<style>
+/* ===== 配色：只改这里 ===== */
+:root{--bg:#f4f2f7;--card:#fff;--ink:#2b2833;--mute:#756f82;--line:#dcd7e4;--accent:#7a6a9a;--accent-d:#66578a;--tint:#ece8f3;--ok:#4f7f62;--err:#b0473f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+main{max-width:1020px;margin:0 auto;padding:28px 18px 60px}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 18px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.row+.row{margin-top:10px}
+label{color:var(--mute);font-size:13px;display:inline-flex;align-items:center;gap:4px}
+summary{cursor:pointer;color:var(--mute)}
+input[type=text],input[type=password]{border:1px solid var(--line);border-radius:6px;padding:7px 9px;font:inherit;min-width:200px;flex:1;background:#fff;color:var(--ink)}
+button{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:6px;padding:6px 13px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover{background:var(--accent-d)}
+button:disabled{opacity:.5;cursor:default}
+button.lnk{border:0;background:none;color:var(--accent-d);padding:0 4px;font-size:13px}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{color:var(--mute);font-weight:500;font-size:13px}
+td.num{font-variant-numeric:tabular-nums}
+td.act{white-space:nowrap}
+tr.grp td{background:var(--tint);font-weight:600;padding:6px 8px}
+.cnt{color:var(--mute);font-weight:400;margin-left:4px}
+.dom{color:var(--mute);font-size:12px}
+.tag{font-size:12px;border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--mute)}
+.st{color:var(--mute)}.st.ok{color:var(--ok)}.st.err{color:var(--err)}
+.wrap{overflow-x:auto}
+.hint{color:var(--mute);font-size:13px;margin:8px 0 0}
+.sep{width:1px;height:20px;background:var(--line)}
+[hidden]{display:none!important}
+.bar{flex:1;min-width:160px;height:8px;background:var(--tint);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.warn{background:var(--tint);border-radius:6px;padding:8px 10px;margin:0 0 8px;color:var(--ink);font-size:13px}
+</style>
+</head>
+<body>
+<main>
+<h1>Sitemap 更新</h1>
+<p class="sub">更新站点 sitemap，按需导出坏链、XML、HTML 与变化记录。</p>
+
+<details class="panel" id="settings">
+  <summary>连接设置</summary>
+  <div class="row">
+    <label for="worker">Worker 地址</label>
+    <input type="text" id="worker" placeholder="https://xxx.workers.dev">
+  </div>
+  <div class="row">
+    <label for="token">访问口令</label>
+    <input type="password" id="token" placeholder="与 Worker 的 ACCESS_TOKEN 相同">
+    <button id="load" class="primary">加载站点列表</button>
+  </div>
+</details>
+
+<section class="panel">
+  <div class="row">
+    <button id="favs">选常用</button>
+    <button id="every">全选</button>
+    <button id="none">清空</button>
+    <span class="sep"></span>
+    <input type="text" id="filter" placeholder="按名称或域名筛选" style="max-width:240px;min-width:140px">
+    <span id="count" class="hint" style="margin:0"></span>
+  </div>
+  <div class="row">
+    <button id="update" class="primary" disabled>更新选中站点</button>
+    <label><input type="checkbox" id="auto"> 更新完成后自动导出</label>
+  </div>
+  <div class="row">
+    <span class="hint" style="margin:0">导出内容</span>
+    <label><input type="checkbox" class="opt" id="o-broken" checked> 坏链 CSV</label>
+    <label><input type="checkbox" class="opt" id="o-xml"> XML</label>
+    <label><input type="checkbox" class="opt" id="o-html"> HTML</label>
+    <label><input type="checkbox" class="opt" id="o-changes"> 变化记录 CSV</label>
+    <button id="export" disabled>导出</button>
+  </div>
+  <div class="row" id="prog" hidden>
+    <div class="bar"><i id="bar"></i></div>
+    <span id="prog-t" class="hint" style="margin:0"></span>
+  </div>
+</section>
+
+<section class="panel">
+  <p id="notice" class="warn" hidden></p>
+  <div class="wrap">
+    <table>
+      <thead><tr><th style="width:32px"><input type="checkbox" id="all" aria-label="全选当前列表"></th><th>站点</th><th>最近更新</th><th>页面数</th><th>状态</th><th></th></tr></thead>
+      <tbody id="body"><tr><td colspan="6" class="st">先在“连接设置”里填写 Worker 地址和口令，再点“加载站点列表”。</td></tr></tbody>
+    </table>
+  </div>
+  <p class="hint">更新是异步的，会定时检查直到完成。坏链和变化记录取自最近一次抓取，想拿最新结果请先更新。</p>
+</section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+/* ===== 配置区：增减常用站点、调参数改这里 =====
+   match：站点网址里包含的文字（不含 https://），label：列表里显示的名称。
+   常用站点会按下面的顺序排在最前面，没匹配上的进“其他站点”。 */
+const CONFIG = {
+  pollMs: 15000,
+  maxWaitMs: 15 * 60e3,
+  concurrency: 4,
+  groups: [
+    { name: "Edimakor 主站", items: [
+      { label: "Edimakor DE", match: "edimakor.hitpaw.de" },
+      { label: "Edimakor FR", match: "edimakor.hitpaw.fr" }
+    ]},
+    { name: "Edimakor Online", items: [
+      { label: "Edimakor Online DE", match: "edimakor.ai/de" },
+      { label: "Edimakor Online FR", match: "edimakor.ai/fr" }
+    ]},
+    { name: "HitPaw 主站", items: [
+      { label: "HitPaw DE", match: "www.hitpaw.de" },
+      { label: "HitPaw FR", match: "www.hitpaw.fr" },
+      { label: "HitPaw IT", match: "www.hitpaw.it" }
+    ]},
+    { name: "HitPaw Online", items: [
+      { label: "HitPaw Online DE", match: "online.hitpaw.de" },
+      { label: "HitPaw Online FR", match: "online.hitpaw.fr" },
+      { label: "HitPaw Online IT", match: "online.hitpaw.it" }
+    ]}
+  ]
+};
+
+/* ===== 工具函数 ===== */
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const norm = u => u.toLowerCase().replace(/^https?:\/\//, "");
+const disp = u => norm(u).replace(/\/+$/, "");
+const slug = u => disp(u).replace(/[^\w.-]+/g, "_");
+const fmt = v => {
+  if (!v) return "-";
+  const d = typeof v === "number" ? new Date(v * 1000) : new Date(v);
+  return isNaN(d) ? String(v) : d.toLocaleString("zh-CN", { hour12: false });
+};
+const csv = rows => "\ufeff" + rows.map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+const stamp = () => new Date().toISOString().slice(0, 10);
+
+/* ===== 总进度条 ===== */
+const prog = { total: 0, done: 0, label: "" };
+function progDraw() {
+  $("#bar").style.width = (prog.total ? prog.done / prog.total * 100 : 0) + "%";
+  $("#prog-t").textContent = `${prog.label} ${prog.done} / ${prog.total}`;
+}
+function progStart(label, total) { Object.assign(prog, { total, done: 0, label }); $("#prog").hidden = false; progDraw(); }
+function progStep() { prog.done++; progDraw(); }
+function progEnd(msg) { $("#prog-t").textContent = msg; }
+function save(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+/* ===== 接口（经 Worker） ===== */
+async function api(params, binary) {
+  const r = await fetch($("#worker").value.trim(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Token": $("#token").value },
+    body: JSON.stringify(params)
+  });
+  if (!r.ok) throw new Error(r.status + " " + (await r.text()).slice(0, 160));
+  if (binary) return r.blob();
+  const j = await r.json();
+  if (j.api_success === false) throw new Error(j.result_desc || "API 验证失败");
+  return j;
+}
+
+/* ===== 站点列表与选择 ===== */
+let sites = [], othersOpen = false;
+let sel = localStorage.getItem("sel") === null ? null : new Set(JSON.parse(localStorage.getItem("sel")));
+const chosen = () => sites.filter(s => sel && sel.has(s.id));
+const saveSel = () => { localStorage.setItem("sel", JSON.stringify([...sel])); syncUI(); };
+
+function syncUI() {
+  const n = sel ? sel.size : 0;
+  $("#update").disabled = $("#export").disabled = n === 0;
+  $("#count").textContent = `已选 ${n} 个站点`;
+}
+const row = s => `
+  <tr data-id="${s.id}">
+    <td><input type="checkbox" class="pick" ${sel.has(s.id) ? "checked" : ""} aria-label="选择 ${disp(s.url)}"></td>
+    <td>${s.label || disp(s.url)}${s.free ? ' <span class="tag">免费</span>' : ""}${s.label ? `<div class="dom">${disp(s.url)}</div>` : ""}</td>
+    <td class="num">${fmt(s.updated)}</td>
+    <td class="num">${s.pages ?? "-"}</td>
+    <td class="st ${s.cls || ""}">${s.state || ""}</td>
+    <td class="act"><button class="one-up">更新</button> <button class="one-ex">导出</button></td>
+  </tr>`;
+
+function render() {
+  const q = $("#filter").value.trim().toLowerCase();
+  const vis = sites.filter(s => ((s.label || "") + s.url).toLowerCase().includes(q));
+  const sections = [
+    ...CONFIG.groups.map(g => ({ name: g.name, list: vis.filter(s => s.group === g.name).sort((a, b) => a.rank - b.rank) })),
+    { name: "其他站点", other: true, list: vis.filter(s => !s.group) }
+  ].filter(x => x.list.length);
+  $("#body").innerHTML = sections.map(sec =>
+    `<tr class="grp"><td colspan="6">${sec.name}<span class="cnt">${sec.list.length}</span>` +
+    (sec.other ? `<button class="lnk" id="toggle-other">${othersOpen ? "收起" : "展开"}</button>` : "") + `</td></tr>` +
+    (sec.other && !othersOpen ? "" : sec.list.map(row).join(""))
+  ).join("") || `<tr><td colspan="6" class="st">没有匹配的站点。</td></tr>`;
+  syncUI();
+}
+function setState(s, text, cls) {
+  s.state = text; s.cls = cls || "";
+  const td = document.querySelector(`tr[data-id="${s.id}"] .st`);
+  if (td) { td.textContent = text; td.className = "st " + (cls || ""); }
+}
+function refreshRow(s) {
+  const tr = document.querySelector(`tr[data-id="${s.id}"]`);
+  if (tr) { tr.children[2].textContent = fmt(s.updated); tr.children[3].textContent = s.pages ?? "-"; }
+}
+
+async function loadSites() {
+  localStorage.setItem("worker", $("#worker").value.trim());
+  localStorage.setItem("token", $("#token").value);
+  $("#load").disabled = true;
+  try {
+    const list = [];
+    let total = Infinity;
+    while (list.length < total) {
+      let j;
+      try { j = await api(list.length ? { method: "sites_list", from: list.length } : { method: "sites_list" }); }
+      catch (e) { if (!list.length) throw e; break; }
+      const r = j.result || j;
+      const es = r.entries || [];
+      total = Number(r.total_entries) || es.length;
+      const fresh = es.filter(e => !list.some(x => String(x.id) === String(e.id)));
+      if (!fresh.length) break;
+      list.push(...fresh);
+    }
+    sites = list.map(e => {
+      const s = { id: String(e.id), url: e.url, updated: e.sitemap_updated, pages: e.pages_indexed, rank: 999,
+                  free: e.pro_account === false || e.pro_account === 0 || e.pro_account === "0" };
+      let r = 0;
+      outer: for (const g of CONFIG.groups) for (const it of g.items) {
+        if (norm(e.url).includes(it.match)) { s.group = g.name; s.label = it.label; s.rank = r; break outer; }
+        r++;
+      }
+      return s;
+    });
+    if (sel === null) sel = new Set(sites.filter(s => s.group).map(s => s.id));
+    sel = new Set([...sel].filter(id => sites.some(s => s.id === id)));
+    saveSel(); render();
+    const miss = CONFIG.groups.flatMap(g => g.items
+      .filter(it => !sites.some(x => norm(x.url).includes(it.match)))
+      .map(it => `${it.label}（${it.match}）`));
+    const parts = [];
+    if (isFinite(total) && list.length < total) parts.push(`账号共有 ${total} 个站点，接口只返回了 ${list.length} 个。`);
+    if (miss.length) parts.push(`没找到这些常用站点：${miss.join("、")}。可能没添加到 PRO Sitemaps 账号，或网址写法不同，可展开“其他站点”查看账号里的实际网址。`);
+    $("#notice").textContent = parts.join(" ");
+    $("#notice").hidden = !parts.length;
+  } catch (e) {
+    $("#body").innerHTML = `<tr><td colspan="6" class="st err">加载失败：${e.message}</td></tr>`;
+  }
+  $("#load").disabled = false;
+}
+
+/* ===== 更新 ===== */
+async function updateSite(s) {
+  setState(s, "请求更新…");
+  const before = (await api({ method: "get_sitemap", site_id: s.id })).result.sitemap_updated;
+  const r = await api({ method: "update_sitemap", site_id: s.id });
+  const code = Number(r.result);
+  if (code === 3) throw new Error("PRO Sitemaps 返回错误");
+  setState(s, code === 1 ? "已在队列中，等待…" : "已加入队列，等待…");
+  const t0 = Date.now();
+  while (Date.now() - t0 < CONFIG.maxWaitMs) {
+    await sleep(CONFIG.pollMs);
+    const g = (await api({ method: "get_sitemap", site_id: s.id })).result;
+    if (g.sitemap_updated !== before) {
+      s.updated = g.sitemap_updated; s.pages = g.sitemap_pages;
+      refreshRow(s); setState(s, "已更新", "ok");
+      return true;
+    }
+    setState(s, `生成中… ${Math.round((Date.now() - t0) / 1000)}s`);
+  }
+  throw new Error("等待超时");
+}
+async function pool(items, n, fn, label) {
+  const q = [...items], done = [], name = label || "处理";
+  progStart(name, items.length);
+  await Promise.all(Array.from({ length: n }, async () => {
+    while (q.length) {
+      const s = q.shift();
+      try { if (await fn(s)) done.push(s); }
+      catch (e) { setState(s, "失败：" + e.message, "err"); }
+      finally { progStep(); }
+    }
+  }));
+  progEnd(`${name}完成：成功 ${done.length}，失败 ${items.length - done.length}`);
+  return done;
+}
+
+/* ===== 导出 ===== */
+function htmlSitemap(name, urls) {
+  const esc = t => t.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const groups = {};
+  urls.sort().forEach(u => {
+    let seg = "/";
+    try { seg = new URL(u).pathname.split("/")[1] || "/"; } catch {}
+    (groups[seg] = groups[seg] || []).push(u);
+  });
+  const body = Object.entries(groups).map(([g, us]) =>
+    `<h2>${esc(g)} <small>(${us.length})</small></h2><ul>${us.map(u => `<li><a href="${esc(u)}">${esc(u)}</a></li>`).join("")}</ul>`).join("");
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sitemap – ${esc(name)}</title><style>body{font:15px/1.6 system-ui,sans-serif;max-width:860px;margin:0 auto;padding:24px 16px;color:#2b2833}h2{font-size:17px;margin:26px 0 6px}small{color:#756f82;font-weight:400}ul{margin:0;padding-left:18px}a{color:#66578a;word-break:break-all}</style></head><body><h1>Sitemap – ${esc(name)}</h1><p>${urls.length} URLs</p>${body}</body></html>`;
+}
+
+async function addToZip(zip, s, o) {
+  const blob = await api({ method: "download_sitemap_all", site_id: s.id }, true);
+  if ((blob.type || "").includes("json")) throw new Error((await blob.text()).slice(0, 120));
+  const z = await JSZip.loadAsync(blob);
+  const dir = zip.folder(slug(s.url)), urls = new Set();
+  for (const [name, f] of Object.entries(z.files)) {
+    if (f.dir) continue;
+    const buf = await f.async("uint8array");
+    if (o.xml) dir.file(name, buf);
+    if (o.html && /\.xml$/i.test(name)) {
+      const doc = new DOMParser().parseFromString(new TextDecoder().decode(buf), "application/xml");
+      if (doc.documentElement.localName === "urlset")
+        [...doc.getElementsByTagName("loc")].forEach(n => urls.add(n.textContent.trim()));
+    }
+  }
+  if (o.html) dir.file("sitemap.html", htmlSitemap(disp(s.url), [...urls]));
+}
+
+async function latestHistory(s) {
+  const l = await api({ method: "site_history", site_id: s.id });
+  const es = (l.result && l.result.entries) || [];
+  if (!es.length) throw new Error("没有历史记录");
+  const latest = es.reduce((a, b) => (Number(b.time) > Number(a.time) ? b : a));
+  const d = await api({ method: "site_history", site_id: s.id, entry_id: latest.id });
+  return { time: fmt(latest.time), det: (d.result && d.result.entry_details) || d.entry_details || {} };
+}
+const brokenRows = (s, h) => (h.det.broken_links || []).flatMap(([u, refs]) =>
+  (refs && refs.length ? refs : [""]).map(r => [disp(s.url), u, r, h.time]));
+const changeRows = (s, h) => {
+  const d = h.det, n = disp(s.url);
+  return [...(d.new_urls || []).map(u => [n, "新增", u, "", h.time]),
+          ...(d.removed_urls || []).map(u => [n, "移除", u, "", h.time]),
+          ...(d.skipped_urls || []).map(([u, why]) => [n, "跳过", u, why, h.time])];
+};
+
+const opts = () => ({ broken: $("#o-broken").checked, xml: $("#o-xml").checked, html: $("#o-html").checked, changes: $("#o-changes").checked });
+
+async function runExport(list) {
+  const o = opts();
+  if (!Object.values(o).some(Boolean)) return alert("请至少勾选一项导出内容");
+  const needZip = o.xml || o.html || (o.broken && o.changes);
+  const zip = new JSZip();
+  const broken = [["站点", "坏链 URL", "来源页面", "抓取时间"]];
+  const changes = [["站点", "类型", "URL", "原因", "抓取时间"]];
+  let fails = 0;
+  progStart("导出", list.length);
+  for (const s of list) {
+    try {
+      setState(s, "导出中…");
+      if (o.xml || o.html) await addToZip(zip, s, o);
+      if (o.broken || o.changes) {
+        const h = await latestHistory(s);
+        if (o.broken) broken.push(...brokenRows(s, h));
+        if (o.changes) changes.push(...changeRows(s, h));
+      }
+      setState(s, "已导出", "ok");
+    } catch (e) { fails++; setState(s, "导出失败：" + e.message, "err"); }
+    finally { progStep(); }
+  }
+  progEnd(`导出完成：成功 ${list.length - fails}，失败 ${fails}`);
+  if (!needZip) {
+    const rows = o.broken ? broken : changes;
+    return save(new Blob([csv(rows)], { type: "text/csv;charset=utf-8" }), (o.broken ? "broken-links-" : "changes-") + stamp() + ".csv");
+  }
+  if (o.broken) zip.file("broken-links.csv", csv(broken));
+  if (o.changes) zip.file("changes.csv", csv(changes));
+  if (!Object.keys(zip.files).length) return;
+  save(await zip.generateAsync({ type: "blob" }), "sitemaps-" + stamp() + ".zip");
+}
+
+/* ===== 事件 ===== */
+$("#load").onclick = loadSites;
+$("#filter").oninput = render;
+$("#favs").onclick = () => { sel = new Set(sites.filter(s => s.group).map(s => s.id)); saveSel(); render(); };
+$("#every").onclick = () => { sel = new Set(sites.map(s => s.id)); saveSel(); render(); };
+$("#none").onclick = () => { sel = new Set(); saveSel(); render(); };
+$("#all").onchange = e => {
+  const q = $("#filter").value.trim().toLowerCase();
+  sites.filter(s => ((s.label || "") + s.url).toLowerCase().includes(q))
+       .forEach(s => e.target.checked ? sel.add(s.id) : sel.delete(s.id));
+  saveSel(); render();
+};
+$("#body").onchange = e => {
+  if (!e.target.classList.contains("pick")) return;
+  const id = e.target.closest("tr").dataset.id;
+  e.target.checked ? sel.add(id) : sel.delete(id);
+  saveSel();
+};
+$("#body").onclick = async e => {
+  if (e.target.id === "toggle-other") { othersOpen = !othersOpen; return render(); }
+  const tr = e.target.closest("tr[data-id]"); if (!tr) return;
+  const s = sites.find(x => x.id === tr.dataset.id);
+  if (e.target.classList.contains("one-up")) await pool([s], 1, updateSite, "更新");
+  if (e.target.classList.contains("one-ex")) await runExport([s]);
+};
+$("#update").onclick = async () => {
+  $("#update").disabled = true;
+  const ok = await pool(chosen(), CONFIG.concurrency, updateSite, "更新");
+  if ($("#auto").checked && ok.length) await runExport(ok);
+  syncUI();
+};
+$("#export").onclick = () => runExport(chosen());
+
+/* ===== 启动 ===== */
+document.querySelectorAll(".opt").forEach(el => el.onchange = () => localStorage.setItem("opts", JSON.stringify(opts())));
+try { const o = JSON.parse(localStorage.getItem("opts") || "null"); if (o) for (const k in o) $("#o-" + k).checked = o[k]; } catch {}
+$("#worker").value = localStorage.getItem("worker") || "";
+$("#token").value = localStorage.getItem("token") || "";
+if ($("#worker").value) loadSites(); else $("#settings").open = true;
+</script>
+</body>
+</html>
